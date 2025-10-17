@@ -107,4 +107,5 @@ const getSortedFaculty = (sortBy) => {
     return facultyArray;
 };
 
+export const facultyListMap = faculty;
 export { getFacultyById, getSortedFaculty };
