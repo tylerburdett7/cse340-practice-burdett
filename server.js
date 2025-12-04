@@ -27,24 +27,30 @@ const app = express();
  * Configure Express
  */
 // Initialize PostgreSQL session store
+    const usePgStore = Boolean(process.env.DB_URL);
     const pgSession = connectPgSimple(session);
-
-    // Configure session middleware
-    app.use(session({
-    store: new pgSession({
-        conString: process.env.DB_URL,
-        tableName: 'session', // The name for our "sessions" table in the db
-        createTableIfMissing: true
-    }),
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: NODE_ENV.includes('dev') !== true,
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000
+    const sessionOptions = {
+        secret: process.env.SESSION_SECRET || 'dev-secret',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: NODE_ENV.includes('dev') !== true,
+            httpOnly: true,
+            maxAge: 24 * 60 * 60 * 1000
+        }
+    };
+    if (usePgStore) {
+        sessionOptions.store = new pgSession({
+            conString: process.env.DB_URL,
+            tableName: 'session',
+            createTableIfMissing: true
+        });
+    } else {
+        // Fallback to in-memory store when DB isn't configured
+        sessionOptions.store = new session.MemoryStore();
+        console.warn('DB_URL not set — using in-memory session store.');
     }
-    }));
+    app.use(session(sessionOptions));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
@@ -125,11 +131,16 @@ if (NODE_ENV.includes('dev')) {
  */
 app.listen(PORT, async () => {
     try {
-        await testConnection();
-        await setupDatabase();
+        if (process.env.DB_URL) {
+            await testConnection();
+            await setupDatabase();
+        } else {
+            console.warn('DB_URL not set — skipping database connection and setup.');
+        }
         console.log(`Server is running on http://127.0.0.1:${PORT}`);
     } catch (error) {
         console.error('Database setup failed:', error.message);
-        process.exit(1);
+        console.error('Starting server without database…');
+        console.log(`Server is running on http://127.0.0.1:${PORT}`);
     }
 });
