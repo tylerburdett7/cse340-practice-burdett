@@ -2,6 +2,13 @@ import { getFacultyById, getSortedFaculty, facultyListMap } from '../../models/f
 
 console.log("✅ Faculty controller file loaded");
 
+/**
+ * Helper function to add styles specific to the faculty pages only
+ */
+const addFacultySpecificStyles = (res) => {
+    res.addStyle('<link rel="stylesheet" href="/css/faculty.css">');
+};
+
 // Show list of all faculty
 const facultyListPage = (req, res) => {
     try {
@@ -19,6 +26,7 @@ const facultyListPage = (req, res) => {
             return { id, ...member };
         });
 
+        addFacultySpecificStyles(res);
         // Render faculty list page
         res.render('faculty/list', {
             title: 'Faculty Directory',
@@ -45,6 +53,7 @@ const facultyDetailPage = (req, res) => {
         return res.status(404).render('404', { message: 'Faculty member not found' });
     }
 
+    addFacultySpecificStyles(res);
     // Render the faculty detail page
     res.render('faculty/detail', {
         title: facultyMember.name,
