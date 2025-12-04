@@ -1,10 +1,14 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { setupDatabase, testConnection } from './src/models/setup.js';
+import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+import flash from './src/middleware/flash.js';
 
 // Import MVC components
 import routes from './src/controllers/routes.js';
-import { addImportantLocalVariables, addOptionalLocalVariables } from './src/middleware/global.js';
+import globalMiddleware from './src/middleware/global.js';
 
 /**
  * Server configuration
@@ -22,15 +26,37 @@ const app = express();
 /**
  * Configure Express
  */
+// Initialize PostgreSQL session store
+    const pgSession = connectPgSimple(session);
+
+    // Configure session middleware
+    app.use(session({
+    store: new pgSession({
+        conString: process.env.DB_URL,
+        tableName: 'session', // The name for our "sessions" table in the db
+        createTableIfMissing: true
+    }),
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: NODE_ENV.includes('dev') !== true,
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000
+    }
+    }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
+// Allow Express to receive and process common POST data
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 /**
  * Global Middleware
  */
-app.use(addImportantLocalVariables);
-app.use(addOptionalLocalVariables);
+app.use(flash);
+app.use(globalMiddleware);
 
 /**
  * Routes
@@ -97,6 +123,13 @@ if (NODE_ENV.includes('dev')) {
 /**
  * Start Server
  */
-app.listen(PORT, () => {
-    console.log(`Server is running on http://127.0.0.1:${PORT}`);
+app.listen(PORT, async () => {
+    try {
+        await testConnection();
+        await setupDatabase();
+        console.log(`Server is running on http://127.0.0.1:${PORT}`);
+    } catch (error) {
+        console.error('Database setup failed:', error.message);
+        process.exit(1);
+    }
 });
